@@ -1,0 +1,9 @@
+{
+  "name": "event-demo",
+  "version": "1.0.0",
+  "description": "Standalone Publish-Subscribe demo — no external dependencies needed",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}

@@ -1,182 +1,478 @@
 # Food Delivery System — Architecture Demo
 
-A minimal Node.js project built to demonstrate the architecture concepts from the presentation:
-**"Architecture Design of a Scalable Food Delivery System"**
+A minimal Node.js microservices project built to demonstrate the core architectural concepts behind scalable food delivery platforms such as Uber Eats and Meituan.
+
+This project was created for a Software Architecture course project at NJUST and focuses on:
+
+* Microservices Architecture
+* API Gateway Pattern
+* REST APIs
+* Publish–Subscribe Communication
+* Event-Driven Architecture
+* Scalability Concepts
 
 ---
 
-## Project Overview
+# Project Overview
 
-This project demonstrates three core architectural patterns discussed in the slides:
+Modern food delivery systems must process large numbers of requests simultaneously while keeping services independent and scalable.
 
-**1. Microservices Architecture**
-Each service (`order-service`, `customer-service`) is an independent Node.js application running on its own port. They share no code and have no knowledge of each other — exactly as described in Slide 4: *"A collection of small, independent services, each owning a specific business function."*
+Instead of building one large monolithic application, this project separates responsibilities into small independent services:
 
-**2. API Gateway**
-The `api-gateway` acts as the single entry point for all client requests (Slide 7). Clients never talk to individual services directly. The gateway reads a route configuration file (`routes.js`) and forwards requests to the right service — just like the slide diagram:
+* `customer-service` → handles customer data
+* `order-service` → handles order creation
+* `api-gateway` → routes incoming requests
+* `event-demo` → demonstrates Publish–Subscribe communication
 
+The system combines:
+
+* **REST-based communication** for direct client requests
+* **Event-driven communication** for background processes
+
+---
+
+# Framework Used
+
+This project uses:
+
+* Node.js as the runtime environment
+* Express.js as the web framework
+
+Node.js allows JavaScript to run on the server side, while Express.js provides lightweight routing and HTTP request handling for building REST APIs.
+
+Express.js fits microservices architecture well because:
+
+* it is lightweight
+* services start quickly
+* each service can remain small and independent
+* APIs can be implemented with minimal boilerplate code
+
+---
+
+# Architecture Overview
+
+## 1. Microservices Architecture
+
+The system is divided into independent services, where each service owns one business responsibility.
+
+Examples:
+
+* `customer-service` manages customer operations
+* `order-service` manages order processing
+
+Each service:
+
+* runs independently
+* has its own port
+* can be modified or scaled separately
+
+This improves:
+
+* scalability
+* maintainability
+* fault isolation
+
+---
+
+## 2. API Gateway Pattern
+
+The `api-gateway` acts as the single entry point to the system.
+
+Instead of the client calling services directly, all requests first go through the gateway:
+
+```text
+Client → API Gateway → Services
 ```
-[User App] → [API Gateway] → [Order Service]
-                           → [Customer Service]
+
+Example:
+
+* `GET /api/customer` → forwarded to Customer Service
+* `POST /api/order` → forwarded to Order Service
+
+The gateway:
+
+* reads route definitions from `routes.js`
+* forwards requests to the correct backend service
+* hides internal service details from the client
+
+---
+
+## 3. Publish–Subscribe (Event-Driven Communication)
+
+When an order is created, the Order Service publishes an event:
+
+```text
+order:created
 ```
 
-**3. Publish-Subscribe (Event-Driven)**
-When an order is created, the Order Service publishes an `order:created` event to an Event Bus. The Delivery, Notification, and Analytics services all react independently — with no direct calls between them (Slide 8). In production this would use Kafka or RabbitMQ. Here it's simulated with Node's built-in `EventEmitter`.
+Other components subscribe to this event and react independently:
 
+* Delivery Service
+* Notification Service
+* Analytics Service
+
+```text
+Order Service → Event Bus → Subscribers
 ```
-[Order Service] → [Event Bus] → [Delivery Service]
-                              → [Notification Service]
-                              → [Analytics Service]
+
+This demonstrates:
+
+* asynchronous communication
+* loose coupling
+* event-driven architecture
+
+The project uses Node.js `EventEmitter` to simulate an event bus. In production systems, technologies like Kafka or RabbitMQ would typically be used.
+
+---
+
+# REST vs Event-Driven Communication
+
+The system uses both communication styles because they solve different problems.
+
+## REST Communication (Synchronous)
+
+Used when the client needs an immediate response.
+
+Example:
+
+```text
+GET /customer
+POST /order
+```
+
+Flow:
+
+```text
+Client → API Gateway → Service → Response
 ```
 
 ---
 
-## Folder Structure
+## Event-Driven Communication (Asynchronous)
 
+Used when one action triggers multiple background processes.
+
+Example:
+
+* assigning a driver
+* sending notifications
+* logging analytics
+
+Flow:
+
+```text
+Order Created → Event Published → Multiple Subscribers React
 ```
+
+The sender does not wait for subscribers to finish processing.
+
+---
+
+# Communication Flow
+
+## Customer Request Flow
+
+```text
+Client
+   ↓
+API Gateway (port 8080)
+   ↓
+Customer Service (port 3001)
+   ↓
+JSON Response
+```
+
+---
+
+## Order Creation Flow
+
+```text
+Client
+   ↓
+API Gateway
+   ↓
+Order Service
+   ↓
+Publishes "order:created" Event
+   ↓
+Delivery / Notification / Analytics React
+```
+
+This demonstrates asynchronous event-driven communication.
+
+---
+
+# Folder Structure
+
+```text
 food-delivery-demo/
 ├── api-gateway/
-│   ├── index.js       ← Gateway routing logic
-│   ├── routes.js      ← Route config (like application.yml)
+│   ├── index.js
+│   ├── routes.js
 │   └── package.json
+│
 ├── order-service/
-│   ├── index.js       ← POST /order + pub/sub event publishing
+│   ├── index.js
 │   └── package.json
+│
 ├── customer-service/
-│   ├── index.js       ← GET /customer
+│   ├── index.js
 │   └── package.json
-└── event-demo/
-    ├── index.js       ← Standalone pub/sub simulation
-    └── package.json
+│
+├── event-demo/
+│   ├── index.js
+│   └── package.json
+│
+└── README.md
 ```
 
 ---
 
-## How to Run
+# Important Files
 
-You need **Node.js** installed.
+## `api-gateway/routes.js`
 
-### Step 1 — Install dependencies for each service
+Contains route configuration for forwarding requests to services.
 
-Open a terminal and run each command:
+Example:
 
-```bash
-cd api-gateway      && npm install && cd ..
-cd order-service    && npm install && cd ..
-cd customer-service && npm install && cd ..
+```javascript
+'/api/order': {
+  target: 'http://localhost:3002',
+  forwardPath: '/order'
+}
 ```
 
-### Step 2 — Start each service in a separate terminal window
+---
 
-**Terminal 1 — Customer Service (port 3001)**
+## `api-gateway/index.js`
+
+Implements the API Gateway logic:
+
+* receives requests
+* checks routing configuration
+* forwards requests to services
+
+---
+
+## `order-service/index.js`
+
+Handles:
+
+* `POST /order`
+* order creation
+* event publishing using `eventBus.emit()`
+
+---
+
+## `customer-service/index.js`
+
+Handles:
+
+* `GET /customer`
+* customer-related responses
+
+Demonstrates independent service responsibility.
+
+---
+
+## `event-demo/index.js`
+
+Standalone demonstration of Publish–Subscribe communication using `EventEmitter`.
+
+Best file for observing event-driven architecture clearly.
+
+---
+
+# How to Run
+
+## Requirements
+
+* Node.js installed
+* Terminal or VS Code terminal
+
+---
+
+## Step 1 — Install dependencies
+
+Run once for each service:
+
+```bash
+cd api-gateway
+npm install
+```
+
+```bash
+cd order-service
+npm install
+```
+
+```bash
+cd customer-service
+npm install
+```
+
+---
+
+## Step 2 — Start services
+
+### Customer Service
+
 ```bash
 cd customer-service
 node index.js
 ```
 
-**Terminal 2 — Order Service (port 3002)**
+---
+
+### Order Service
+
 ```bash
 cd order-service
 node index.js
 ```
 
-**Terminal 3 — API Gateway (port 8080)**
+---
+
+### API Gateway
+
 ```bash
 cd api-gateway
 node index.js
 ```
 
-### Step 3 — Send requests through the API Gateway
+---
 
-Open a fourth terminal and run:
+# Testing the System
 
-**Get customers:**
+## Test Customer Service
+
 ```bash
 curl http://localhost:8080/api/customer
 ```
 
-**Create an order:**
-```bash
-curl -X POST http://localhost:8080/api/order \
-     -H "Content-Type: application/json" \
-     -d '{"item": "Pizza"}'
-```
+Expected result:
 
-> On Windows (Command Prompt), replace the `curl` command with:
-> ```
-> curl -X POST http://localhost:8080/api/order -H "Content-Type: application/json" -d "{\"item\": \"Pizza\"}"
-> ```
-
----
-
-## Expected Results
-
-### When you GET /api/customer
-
-**API Gateway terminal** logs:
-```
-[API Gateway] GET /api/customer → Routes to Customer Service (http://localhost:3001/customer)
-```
-
-**Customer Service terminal** logs:
-```
-[Customer Service] GET /customer — returning 2 customers
-```
-
-**Response:**
 ```json
 {
   "customers": [
-    { "id": 1, "name": "Alice Johnson", "email": "alice@example.com", "address": "123 Main St" },
-    { "id": 2, "name": "Bob Smith",     "email": "bob@example.com",   "address": "456 Oak Ave" }
+    {
+      "id": 1,
+      "name": "Alice Johnson"
+    }
   ]
 }
 ```
 
 ---
 
-### When you POST /api/order
+## Test Order Creation
 
-**API Gateway terminal** logs:
-```
-[API Gateway] POST /api/order → Routes to Order Service (http://localhost:3002/order)
-```
-
-**Order Service terminal** logs (this is the pub/sub in action):
-```
-[Order Service] New order received: "Pizza" (ID: 1714123456789)
-[Order Service] Publishing 'order:created' event to Event Bus...
-  [Event → Delivery Service]    Assigning driver for Order #1714123456789 (Pizza)
-  [Event → Notification Service] Sending SMS to customer for Order #1714123456789
-  [Event → Analytics Service]    Logging Order #1714123456789 to dashboard
+```bash
+curl -X POST http://localhost:8080/api/order -H "Content-Type: application/json" -d "{\"item\":\"Pizza\"}"
 ```
 
-**Response:**
+Expected result:
+
 ```json
 {
-  "status": "Order Created",
-  "order": { "id": 1714123456789, "item": "Pizza", "status": "Order Created" }
+  "status": "Order Created"
 }
 ```
 
+Order Service terminal should also display Publish–Subscribe event logs.
+
 ---
 
-### Event-Demo (standalone)
+# Event Demo
 
-Run this separately to see a clean pub/sub demonstration without any HTTP:
+Run separately:
 
 ```bash
 cd event-demo
 node index.js
 ```
 
-Expected output:
-```
-[Order Service] Customer placed an order: "Margherita Pizza" (Order ID: 4821)
-[Order Service] Publishing 'order:created' event to Event Bus...
+This demonstrates:
 
-   [Delivery Service]    Received event! Assigning driver for Order #4821...
-   [Notification Service] Received event! Sending SMS to customer: "Your Margherita Pizza is being prepared!"
-   [Analytics Service]   Received event! Logging Order #4821 to dashboard.
-```
+* publisher
+* subscribers
+* asynchronous event flow
 
+without involving HTTP communication.
+
+---
+
+# Scalability Concepts
+
+This project demonstrates scalability principles commonly used in real-world systems.
+
+Examples:
+
+* services can scale independently
+* additional subscribers can be added without modifying Order Service
+* the API Gateway centralizes routing logic
+
+In real production systems:
+
+* multiple instances of services run behind load balancers
+* Kafka handles distributed event streaming
+* Kubernetes manages service orchestration
+
+---
+
+# Loose Coupling
+
+The system demonstrates loose coupling because services do not depend on each other's internal implementation.
+
+Examples:
+
+* the Order Service does not directly call Delivery Service
+* subscribers react independently through events
+* services communicate through stable interfaces
+
+This improves:
+
+* flexibility
+* maintainability
+* extensibility
+
+---
+
+# Current Limitations
+
+This project is an educational architecture demo and not a production-ready system.
+
+Not implemented:
+
+* real Kafka/RabbitMQ
+* database persistence
+* authentication
+* service discovery
+* real load balancing
+* distributed deployment
+
+The event system is simulated using Node.js `EventEmitter`.
+
+---
+
+# Architecture Mapping
+
+| Concept                    | Implementation                        |
+| -------------------------- | ------------------------------------- |
+| Microservices              | `order-service`, `customer-service`   |
+| API Gateway                | `api-gateway/index.js`                |
+| REST APIs                  | `app.get()`, `app.post()`             |
+| Publish–Subscribe          | `eventBus.emit()` and `eventBus.on()` |
+| Event-Driven Architecture  | `event-demo/index.js`                 |
+| Asynchronous Communication | event publishing/subscribing          |
+| Loose Coupling             | independent subscribers               |
+
+---
+
+# References
+
+1. Martin Fowler — *Microservices Architecture*
+2. Software Architecture in Practice
+3. Event-Driven Microservices Architectures: Principles, Patterns and Best Practices (2025)
+4. Containerized Event-Driven Microservice Architecture (2024)
